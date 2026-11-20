@@ -774,6 +774,10 @@ function loadPlanSettings(){const sp=docs.plan;if(!sp)return;plLoaded=true;$('#p
 function syncPlanUI(){segSet('#plMealSeg',plMeal);segSet('#plDishSeg',String(plDish));document.querySelectorAll('#plEx button').forEach(b=>b.classList.toggle('on',plEx.has(b.dataset.v)));$('#plPctTxt').textContent=$('#plPct').value+' %'}
 function buildPlans(){plS=plSettings();const c=calc(profile());const T=c.target*plS.pct/100,Pt=c.prot*plS.pct/100;plans=makePlans(plS,T,Pt);plS.T=T;plS.Pt=Pt}
 $('#plGo').onclick=()=>{planIdx=0;buildPlans();const s=Object.assign({},plS,{idx:0,on:true});delete s.T;delete s.Pt;put('plan',s);renderPlan();$('#plOut').scrollIntoView({behavior:'smooth',block:'start'})};
+let plTimer=null;
+function plAuto(){if(!(docs.plan&&docs.plan.on))return;clearTimeout(plTimer);plTimer=setTimeout(()=>{planIdx=0;buildPlans();const s=Object.assign({},plS,{idx:0,on:true});delete s.T;delete s.Pt;put('plan',s);renderPlan()},400)}
+['#plBudget','#plN','#plPeople','#plPct','#plPantry'].forEach(id=>{$(id).addEventListener('input',plAuto);$(id).addEventListener('change',plAuto)});
+['#plMealSeg','#plDishSeg','#plEx','#plNQuick'].forEach(id=>$(id).addEventListener('click',e=>{if(e.target.closest('button'))plAuto()}));
 $('#plNext').onclick=()=>{if(!plans.length)return;planIdx=(planIdx+1)%Math.min(plans.length,12);const s=Object.assign({},docs.plan||{},{idx:planIdx});put('plan',s);renderPlan()};
 const eur=n=>n.toLocaleString('es-ES',{style:'currency',currency:'EUR'});
 const qty=(k,g)=>{const c=CAT[k];if(c.unit){const n=Math.round(g/c.unit);return `${n} ${n===1?c.un:c.uns}`}return g>=1000?`${fx(g/1000,g%1000?2:0)} kg`:`${r0(g)} g`};
