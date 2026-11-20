@@ -506,7 +506,7 @@ $('#impBtn').onclick=()=>{openSheet(`<div class="sheet-h"><h2>Restaurar copia</h
 /* ---------- hoja modal ---------- */
 function openSheet(html,mount){$('#sheetBody').innerHTML=html;$('#backdrop').classList.add('on');$('#sheet').classList.add('on');$('#sheet').scrollTop=0;
   $('#sheetBody').querySelectorAll('[data-close]').forEach(b=>b.onclick=closeSheet);if(mount)mount()}
-function closeSheet(){if(typeof stopCam==='function')stopCam();$('#backdrop').classList.remove('on');$('#sheet').classList.remove('on')}
+function closeSheet(){comboPending=false;if(typeof stopCam==='function')stopCam();$('#backdrop').classList.remove('on');$('#sheet').classList.remove('on')}
 $('#backdrop').onclick=closeSheet;
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSheet()});
 
@@ -575,6 +575,7 @@ function openFoodForm(food,opt){opt=opt||{};const f=food||opt.prefill||{name:'',
       if(f.est&&food)rec.est=true;
       if(food&&food.id!==id)del(food.id);
       put(id,rec);
+      if(comboPending)return addToCombo(id);
       if(opt.meal)openPortion(Object.assign({id},rec),opt.meal);else closeSheet()};
     if(food)$('#fDel').onclick=()=>{del(food.id);closeSheet()};
     if($('#fLabel'))$('#fLabel').onclick=()=>{labelTarget=F;$('#labelIn').value='';$('#labelIn').click()};
@@ -614,7 +615,7 @@ let scanMeal=null,zx=null;
 function photoScan(meal){scanMeal=meal;$('#scanIn').value='';$('#scanIn').click()}
 let camStream=null,camTimer=null;
 function stopCam(){clearTimeout(camTimer);camTimer=null;if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null}}
-async function startScan(meal){
+async function startScan(meal,forCombo){comboPending=!!forCombo;
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)return photoScan(meal);
   openSheet(`<div class="sheet-h"><h2>Apunta al código</h2><button class="x" data-close aria-label="Cerrar">✕</button></div>
    <div class="cam"><video id="camV" playsinline muted autoplay></video><div class="aim"></div></div>
@@ -639,7 +640,7 @@ function manualCode(meal,msg){openSheet(`<div class="sheet-h"><h2>${msg?'No he p
    <label class="f">Números del código<input id="mCode" inputmode="numeric" placeholder="p. ej. 8480017000000"></label>
    <div class="btns"><button class="btn pri" id="mGo">Buscar</button><button class="btn" id="mRetry">Volver a escanear</button><button class="btn ghost" id="mHand">Añadir sin código</button></div>`,()=>{
     $('#mGo').onclick=()=>{const c=$('#mCode').value.replace(/\D/g,'');if(c.length>=6)handleCode(c,meal);else $('#mCode').focus()};
-    $('#mRetry').onclick=()=>startScan(meal);$('#mHand').onclick=()=>openFoodForm(null,{meal:meal||guessMeal()})})}
+    $('#mRetry').onclick=()=>startScan(meal,comboPending);$('#mHand').onclick=()=>openFoodForm(null,{meal:meal||guessMeal()})})}
 function loadZX(){if(!zx)zx=new Promise((res,rej)=>{const s=document.createElement('script');s.src='zxing.min.js';s.onload=()=>res(window.ZXing);s.onerror=()=>{zx=null;rej()};document.head.appendChild(s)});return zx}
 async function loadImg(file){try{return await createImageBitmap(file,{imageOrientation:'from-image'})}catch(e){}
   return new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=URL.createObjectURL(file)})}
@@ -668,6 +669,7 @@ async function offLookup(code){const ctl=new AbortController(),t=setTimeout(()=>
   catch(e){return null}finally{clearTimeout(t)}}
 async function handleCode(code,meal){code=String(code).replace(/\D/g,'');
   const f=foods().find(x=>x.barcode===code);
+  if(f&&comboPending)return addToCombo(f.id);
   if(f){if(meal)openPortion(f,meal);else openFoodForm(f);return}
   openSheet(`<div class="sheet-h"><h2>Buscando ${esc(code)}…</h2><button class="x" data-close aria-label="Cerrar">✕</button></div><p class="small mut">Miro en Open Food Facts.</p><div style="padding:16px"><div class="spin"></div></div>`);
   const o=await offLookup(code);
@@ -788,23 +790,26 @@ function renderPlan(){
   $('#plCopy').onclick=async()=>{const t='Compra Dia ('+eur(pl.cost)+')\n'+pl.shop.filter(s=>s.inBudget).map(s=>'- '+CAT[s.k].n+': '+s.b.items.map(([pk,c])=>c+' × '+pk.l).join(' + ')).join('\n');
     try{await navigator.clipboard.writeText(t);$('#plCopyMsg').textContent='Copiada. Pégala en notas o WhatsApp.'}catch(e){$('#plCopyMsg').textContent='No se pudo copiar desde aquí.'}};
 }
-const PQ={pollo:['pechuga pollo dia','pechuga-de-pollo'],picpollo:['carne picada pollo dia','carne-picada'],picmixta:['carne picada vacuno cerdo dia','carne-picada'],huevos:['huevos dia','huevos'],atun:['atun al natural mari marinera','atun'],arroz:['arroz largo arrozona dia','arroz'],macarron:['macarron al diante dia','macarrones'],macint:['macarron integral dia','macarrones'],garbanzos:['garbanzos cocidos vegecampo','garbanzos'],lentejas:['lentejas cocidas vegecampo','lentejas'],tomate:['tomate frito vegecampo','tomate-frito'],patatas:[null,'patatas'],salteado:['salteado verduras dia',null],cebolla:[null,null],aceite:['aceite oliva suave almazara del olivar',null]};
+const PQ={pollo:[null,'pechuga-de-pollo'],picpollo:['carne picada pollo dia','carne-picada'],picmixta:['carne picada vacuno cerdo dia','carne-picada'],huevos:['huevos dia','huevos'],atun:['atun al natural dia','atun','8480017314772'],arroz:['arroz largo arrozona dia','arroz','8480017288097'],macarron:['macarron al diante dia','macarrones','8480017061478'],macint:['macarron integral dia','macarrones','8480017256423'],garbanzos:['garbanzos cocidos vegecampo','garbanzos','8480017012326'],lentejas:['lentejas cocidas vegecampo','lentejas'],tomate:['tomate frito dia','tomate-frito','8480017106773'],patatas:[null,'patatas'],salteado:['salteado verduras dia',null],cebolla:[null,null],aceite:['aceite oliva suave almazara del olivar',null]};
 const photoCache={};
-async function offPhoto(q){if(q in photoCache)return photoCache[q];const ctl=new AbortController(),t=setTimeout(()=>ctl.abort(),9000);
+async function offByCode(code){const ctl=new AbortController(),t=setTimeout(()=>ctl.abort(),12000);
+  try{const r=await fetch('https://world.openfoodfacts.org/api/v2/product/'+code+'.json?fields=product_name,image_front_url,image_url,image_front_small_url',{signal:ctl.signal});const j=await r.json();const P=j.product||{};
+    const img=P.image_front_url||P.image_url||P.image_front_small_url;return img?{img,name:P.product_name||'',code}:null}catch(e){return null}finally{clearTimeout(t)}}
+async function offPhoto(q){if(q in photoCache)return photoCache[q];const ctl=new AbortController(),t=setTimeout(()=>ctl.abort(),15000);
   try{const r=await fetch('https://world.openfoodfacts.org/cgi/search.pl?search_terms='+encodeURIComponent(q)+'&search_simple=1&action=process&json=1&page_size=12&fields=code,product_name,brands,stores,image_front_url,image_front_small_url',{signal:ctl.signal});const j=await r.json();
     const ps=(j.products||[]).filter(x=>x.image_front_url||x.image_front_small_url),isDia=x=>/\bd[ií]a\b/i.test((x.brands||'')+' '+(x.stores||''));
     const best=ps.find(isDia)||null;photoCache[q]=best?{img:best.image_front_url||best.image_front_small_url,name:best.product_name||'',code:best.code}:null}
   catch(e){photoCache[q]=undefined}finally{clearTimeout(t)}return photoCache[q]}
-async function openProduct(k){const c=CAT[k],[q,fs]=PQ[k]||[null,null],v=c.v;
+async function openProduct(k){const c=CAT[k],[q,fs,ean]=PQ[k]||[null,null,null],v=c.v,hasPh=!!(q||ean);
   const links=`${fs?`<a class="btn sm" href="https://finditapp.es/supermercado/dia/${fs}" target="_blank" rel="noopener">Ver precios en Dia ›</a>`:''}<a class="btn sm ghost" href="https://www.google.com/search?q=${encodeURIComponent('Dia '+c.n)}" target="_blank" rel="noopener">Buscar en Google ›</a>`;
   openSheet(`<div class="sheet-h"><h2>${esc(c.n)}</h2><button class="x" data-close aria-label="Cerrar">✕</button></div>
-   <div id="prodImg" style="min-height:${q?'180px':'0'};display:grid;place-items:center;background:var(--card);border-radius:12px;margin:6px 0">${q?'<div class="spin"></div>':''}</div>
+   <div id="prodImg" style="min-height:${hasPh?'180px':'0'};display:grid;place-items:center;background:var(--card);border-radius:12px;margin:6px 0">${hasPh?'<div class="spin"></div>':''}</div>
    <p class="small mut" style="margin:4px 0">${c.packs.map(p=>`${esc(p.l)}: <b>${c.est?'≈ ':''}${eur(p.p)}</b>`).join(' · ')}</p>
    <table class="label-tbl"><tr class="h"><td>Por 100 g</td><td>${r0(v.k)} kcal</td></tr><tr><td>Proteínas</td><td>${d1(v.p)} g</td></tr><tr><td>Hidratos</td><td>${d1(v.c)} g</td></tr><tr><td>Grasas</td><td>${d1(v.f)} g</td></tr></table>
    <div class="btns">${links}</div>`);
-  if(!q){$('#prodImg').style.display='none';return}
-  const ph=await offPhoto(q),box=$('#prodImg');if(!box)return;
-  if(!ph){box.innerHTML='<p class="small mut" style="padding:16px;text-align:center">No he encontrado una foto de este producto. Mira el enlace de abajo.</p>';return}
+  if(!hasPh){$('#prodImg').style.display='none';return}
+  const ph=(ean?await offByCode(ean):null)||(q?await offPhoto(q):null),box=$('#prodImg');if(!box)return;
+  if(!ph){box.innerHTML='<p class="small mut" style="padding:16px;text-align:center">No hay foto de este producto en Open Food Facts (o no hay conexión). Mira el enlace de abajo.</p>';return}
   box.innerHTML=`<img src="${esc(ph.img)}" alt="${esc(c.n)}" style="max-width:100%;max-height:260px;object-fit:contain;border-radius:10px;padding:8px" onerror="this.parentNode.innerHTML='<p class=&quot;small mut&quot; style=&quot;padding:16px&quot;>No se puede cargar la foto aquí.</p>'"><p class="small mut" style="margin:0 0 8px;text-align:center">Foto: Open Food Facts${ph.name?' · '+esc(ph.name):''}</p>`}
 function logRecipe(g,meal){const d=JSON.parse(JSON.stringify(dayDoc(cur)));
   for(const k in g.amt){const fid='f_dia_'+k,c=CAT[k];if(!docs[fid])put(fid,{name:c.n,brand:'Dia',barcode:'',n:Object.assign({k:0,p:0,c:0,f:0},c.v),serving:c.unit||null,last:Date.now(),uses:0});
@@ -833,23 +838,29 @@ function solveCombo(items,tg){const J=['k','p','c','f'],W={k:3,p:3,c:1,f:1},n=it
   for(let it=0;it<300;it++)for(let i=0;i<n;i++){let num_=0,den=0;J.forEach((j,ji)=>{let r=0;for(let q=0;q<n;q++)if(q!==i)r+=A[q][ji]*x[q];num_+=w[ji]*A[i][ji]*(tg[j]-r);den+=w[ji]*A[i][ji]**2});
     x[i]=clamp(den?num_/den:lo[i],lo[i],hi[i])}
   return items.map((it,i)=>{if(it.unit)return Math.max(1,Math.round(x[i]/it.unit))*it.unit;return Math.max(lo[i],Math.round(x[i]/5)*5)})}
-let combo={meal:'comida',mode:'pct',sel:[]};
+let combo={meal:'comida',mode:'pct',sel:[],scope:'mine'},comboPending=false;
+function addToCombo(fid){comboPending=false;const id='u:'+fid;if(!combo.sel.includes(id))combo.sel.push(id);openCombo(combo.meal,true)}
 function comboTarget(){const c=calc(profile());if(combo.mode==='rem'){const t=dayTot(cur);return{k:Math.max(0,c.target-t.k),p:Math.max(0,c.prot-t.p),c:Math.max(0,c.carb-t.c),f:Math.max(0,c.fat-t.f)}}
   const pc=MEALPCT[combo.meal]/100;return{k:c.target*pc,p:c.prot*pc,c:c.carb*pc,f:c.fat*pc}}
-function openCombo(meal){combo.meal=meal||guessMeal();addMeal=combo.meal;
+function openCombo(meal,keep){combo.meal=keep?combo.meal:(meal||guessMeal());addMeal=combo.meal;
   openSheet(`<div class="sheet-h"><h2>Plato con lo que tengo</h2><button class="x" data-close aria-label="Cerrar">✕</button></div>
    ${mealSeg(combo.meal)}
    <div class="seg" id="cbMode"><button type="button" data-v="pct">Lo normal para esta comida</button><button type="button" data-v="rem">Lo que me queda hoy</button></div>
    <p class="small" id="cbTarget" style="margin:8px 0"></p>
-   <label class="f">¿Qué tienes? Elige 2 o más alimentos</label><div class="seg" id="cbSel"></div>
+   <label class="f">¿Qué tienes en casa? Elige 2 o más</label><div class="seg" id="cbSel"></div>
+   <div class="btns"><button class="btn" id="cbScan">Escanear un alimento</button><button class="btn ghost" id="cbNew">Añadir a mano</button></div>
+   <div class="seg" id="cbScope" style="margin-top:12px"><button type="button" data-v="mine">Mis alimentos</button><button type="button" data-v="all">Todos (Dia y comunes)</button></div>
    <p><input class="search" id="cbQ" type="search" placeholder="Busca: pollo, tomate, macarrones…"></p><ul class="items" id="cbList"></ul>
    <div class="btns"><button class="btn pri" id="cbGo">Calcular mi plato</button></div><div id="cbOut"></div>`,()=>{
     const all=comboFoods();
     const tgt=()=>{const t=comboTarget();$('#cbTarget').innerHTML=`Objetivo: <b>${r0(t.k)} kcal</b> · P ${r0(t.p)} · H ${r0(t.c)} · G ${r0(t.f)} g`;return t};
     const sel=()=>{$('#cbSel').innerHTML=combo.sel.length?combo.sel.map(id=>{const f=all.find(x=>x.id===id);return f?`<button type="button" class="on" data-rm="${esc(id)}">${esc(f.name)} ✕</button>`:''}).join(''):'<span class="small mut">Aún nada.</span>'};
-    const list=()=>{const q=$('#cbQ').value.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');const fs=all.filter(f=>!combo.sel.includes(f.id)&&(!q||f.name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').includes(q))).slice(0,q?25:12);
-      $('#cbList').innerHTML=fs.map(f=>`<li><button class="ed" data-add="${esc(f.id)}"><span class="n"><b>${esc(f.name)}</b><small>${esc(f.src)} · ${r0(f.v.k)} kcal · P ${d1(f.v.p)} /100 g</small></span><span class="k">+</span></button></li>`).join('')||'<li class="empty">No lo encuentro. Añádelo en Alimentos y vuelve.</li>'};
-    segSet('#cbMode',combo.mode);tgt();sel();list();bindMealSeg();
+    const list=()=>{const q=$('#cbQ').value.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');const fs=all.filter(f=>!combo.sel.includes(f.id)&&(combo.scope==='all'||f.id.startsWith('u:'))&&(!q||f.name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').includes(q))).slice(0,q?25:12);
+      $('#cbList').innerHTML=fs.map(f=>`<li><button class="ed" data-add="${esc(f.id)}"><span class="n"><b>${esc(f.name)}</b><small>${esc(f.src)} · ${r0(f.v.k)} kcal · P ${d1(f.v.p)} /100 g</small></span><span class="k">+</span></button></li>`).join('')||`<li class="empty">${combo.scope==='mine'?(foods().length?'No está en tus alimentos. Escanéalo, añádelo a mano o mira en "Todos".':'Aún no tienes alimentos guardados. Escanea lo que tengas en casa o mira en "Todos".'):'No lo encuentro. Escanéalo o añádelo a mano.'}</li>`};
+    segSet('#cbMode',combo.mode);segSet('#cbScope',combo.scope);tgt();sel();list();bindMealSeg();
+    $('#cbScope').onclick=e=>{const b=e.target.closest('button');if(b){combo.scope=b.dataset.v;segSet('#cbScope',combo.scope);list()}};
+    $('#cbScan').onclick=()=>startScan(combo.meal,true);
+    $('#cbNew').onclick=()=>{comboPending=true;openFoodForm(null,{})};
     $('#mealSeg').addEventListener('click',()=>{combo.meal=addMeal;tgt()});
     $('#cbMode').onclick=e=>{const b=e.target.closest('button');if(b){combo.mode=b.dataset.v;segSet('#cbMode',combo.mode);tgt()}};
     $('#cbQ').oninput=list;
@@ -859,7 +870,7 @@ function openCombo(meal){combo.meal=meal||guessMeal();addMeal=combo.meal;
       if(items.length<1){out.innerHTML='<div class="note warn">Elige al menos un alimento.</div>';return}
       if(t.k<150){out.innerHTML='<div class="note warn">Hoy ya casi no te quedan calorías. Cambia a "Lo normal para esta comida" si quieres el plato igualmente.</div>';return}
       const g=solveCombo(items,t),tot={k:0,p:0,c:0,f:0};items.forEach((it,i)=>{for(const q in tot)tot[q]+=(it.v[q]||0)*g[i]/100});
-      const tips=[];if(tot.p<t.p*.8)tips.push('Te falta proteína: añade pollo, atún, huevo, pavo o queso fresco batido.');if(tot.k<t.k*.85)tips.push('Con estos alimentos no llegas a las calorías: añade arroz, pasta, pan o patata.');if(tot.f<t.f*.6)tips.push('Vas corto de grasas: añade un chorrito de aceite de oliva (10 g), aguacate o frutos secos.');if(tot.k>t.k*1.15)tips.push('Se pasa de calorías aun con lo mínimo de cada alimento: quita alguno.');
+      const tips=[];if(tot.p<t.p*.8)tips.push('Te falta proteína. Si tienes algo como pollo, atún, huevo o pavo, añádelo.');if(tot.k<t.k*.85)tips.push('Con estos alimentos no llegas a las calorías. Si tienes arroz, pasta, pan o patata, añádelo.');if(tot.f<t.f*.6)tips.push('Vas corto de grasas. Si tienes aceite de oliva, un chorrito (10 g) lo arregla.');if(tot.k>t.k*1.15)tips.push('Se pasa de calorías aun con lo mínimo de cada alimento: quita alguno.');
       const qt=(it,gr)=>it.unit?`${Math.round(gr/it.unit)} ${Math.round(gr/it.unit)===1?it.un:it.uns} (${r0(gr)} g)`:`${r0(gr)} g`;
       out.innerHTML=`<table class="label-tbl"><tr class="h"><td>Pon esto en el plato</td><td>kcal</td></tr>${items.map((it,i)=>`<tr><td><b>${qt(it,g[i])}</b> de ${esc(it.name)}</td><td>${r0((it.v.k||0)*g[i]/100)}</td></tr>`).join('')}
         <tr class="h"><td>Total</td><td>${r0(tot.k)} kcal</td></tr><tr><td>Proteínas</td><td>${r0(tot.p)} / ${r0(t.p)} g</td></tr><tr><td>Hidratos</td><td>${r0(tot.c)} / ${r0(t.c)} g</td></tr><tr><td>Grasas</td><td>${r0(tot.f)} / ${r0(t.f)} g</td></tr></table>
