@@ -158,6 +158,7 @@ details{margin-top:12px}summary{cursor:pointer;font-weight:700;min-height:44px;d
   <section class="view" id="v-hoy">
     <div id="profileNudge"></div>
     <div class="panel" id="dayPanel"></div>
+    <div class="btns" style="margin:-4px 0 6px"><button class="btn pri" id="comboBtn">Hazme un plato con lo que tengo</button></div>
     <div id="meals"></div>
   </section>
 
@@ -517,13 +518,13 @@ function mealSeg(m){return `<div class="seg" id="mealSeg">${MEALS.map(([k,n])=>`
 function bindMealSeg(){const s=$('#mealSeg');if(s)s.onclick=e=>{const b=e.target.closest('button');if(b){addMeal=b.dataset.v;segSet('#mealSeg',addMeal)}}}
 function openAdd(meal){addMeal=meal;
   openSheet(`<div class="sheet-h"><h2>Añadir a…</h2><button class="x" data-close aria-label="Cerrar">✕</button></div>${mealSeg(meal)}
-  <div class="btns"><button class="btn pri" id="aScan">Escanear código</button><button class="btn" id="aNew">A mano</button>${sampleFn?'<button class="btn ghost" id="aAI">Describir con IA</button>':''}</div>
+  <div class="btns"><button class="btn pri" id="aScan">Escanear código</button><button class="btn" id="aNew">A mano</button><button class="btn ghost" id="aCombo">Con lo que tengo</button>${sampleFn?'<button class="btn ghost" id="aAI">Describir con IA</button>':''}</div>
   <p><input class="search" id="aSearch" type="search" placeholder="Buscar en mis alimentos"></p><ul class="items" id="aList"></ul>`,()=>{
     bindMealSeg();
     const list=()=>{const fs=foodMatches($('#aSearch').value).slice(0,40);$('#aList').innerHTML=fs.length?fs.map(f=>foodLi(f,'pick')).join(''):`<li class="empty">${foods().length?'Sin resultados.':'Tu base de datos está vacía: escanea o añade a mano tu primer alimento.'}</li>`};
     list();$('#aSearch').oninput=list;
     $('#aList').onclick=e=>{const b=e.target.closest('[data-pick]');if(b)openPortion(foods().find(f=>f.id===b.dataset.pick),addMeal)};
-    $('#aScan').onclick=()=>startScan(addMeal);$('#aNew').onclick=()=>openFoodForm(null,{meal:addMeal});
+    $('#aScan').onclick=()=>startScan(addMeal);if($('#aCombo'))$('#aCombo').onclick=()=>openCombo(addMeal);$('#aNew').onclick=()=>openFoodForm(null,{meal:addMeal});
     if($('#aAI'))$('#aAI').onclick=()=>openAI(addMeal);
   })}
 
@@ -811,6 +812,66 @@ function logRecipe(g,meal){const d=JSON.parse(JSON.stringify(dayDoc(cur)));
   put('d_'+cur,d)}
 loadPlanSettings();syncPlanUI();
 
+/* ---------- plato con lo que tengo ---------- */
+// Valores medios por 100 g (tablas de composición tipo BEDCA/USDA). t: tipo para limitar cantidades razonables.
+const GEN={tomnat:['Tomate natural','veg',{k:18,p:.9,c:3.9,f:.2,fi:1.2}],lechuga:['Lechuga','veg',{k:15,p:1.4,c:2.9,f:.2,fi:1.3}],pimiento:['Pimiento','veg',{k:26,p:1,c:6,f:.3,fi:2}],calabacin:['Calabacín','veg',{k:17,p:1.2,c:3.1,f:.3,fi:1}],zanahoria:['Zanahoria','veg',{k:41,p:.9,c:9.6,f:.2,fi:2.8}],brocoli:['Brócoli','veg',{k:34,p:2.8,c:7,f:.4,fi:2.6}],champi:['Champiñones','veg',{k:22,p:3.1,c:3.3,f:.3,fi:1}],espinaca:['Espinacas','veg',{k:23,p:2.9,c:3.6,f:.4,fi:2.2}],
+ platano:['Plátano','fruit',{k:89,p:1.1,c:23,f:.3,fi:2.6}],manzana:['Manzana','fruit',{k:52,p:.3,c:14,f:.2,fi:2.4}],
+ pan:['Pan blanco','bread',{k:265,p:9,c:49,f:3.2,fi:2.7}],panint:['Pan integral','bread',{k:247,p:13,c:41,f:3.4,fi:7}],avena:['Copos de avena','dry',{k:372,p:13.5,c:58.7,f:7,fi:10}],quinoa:['Quinoa (en seco)','dry',{k:368,p:14,c:64,f:6,fi:7}],cuscus:['Cuscús (en seco)','dry',{k:376,p:12.8,c:77,f:.6,fi:5}],boniato:['Boniato','carb',{k:86,p:1.6,c:20,f:.1,fi:3}],
+ yogur:['Yogur natural','dairy',{k:61,p:3.5,c:4.7,f:3.3}],queso0:['Queso fresco batido 0%','dairy',{k:46,p:8,c:3.5,f:.1}],leche:['Leche semidesnatada','dairy',{k:46,p:3.2,c:4.7,f:1.6}],
+ aguacate:['Aguacate','fatfood',{k:160,p:2,c:8.5,f:14.7,fi:6.7}],queso:['Queso rallado','cheese',{k:400,p:28,c:1,f:32}],cacahuete:['Crema de cacahuete','nut',{k:588,p:25,c:20,f:50,fi:6}],nueces:['Nueces','nut',{k:654,p:15,c:14,f:65,fi:7}],
+ york:['Jamón cocido','prot',{k:110,p:18,c:1.5,f:3.5}],pavo:['Pechuga de pavo (fiambre)','prot',{k:100,p:19,c:2,f:2}],salmon:['Salmón','prot',{k:208,p:20,c:0,f:13}],merluza:['Merluza','prot',{k:82,p:17.5,c:0,f:1.3}],ternera:['Filete de ternera','prot',{k:131,p:21,c:0,f:5}],lomo:['Lomo de cerdo','prot',{k:143,p:21,c:0,f:6.5}],gambas:['Gambas','prot',{k:85,p:18,c:.5,f:1}],tofu:['Tofu','prot',{k:144,p:15.8,c:2,f:8.7}]};
+const CTYPE={pollo:'prot',picpollo:'prot',picmixta:'prot',huevos:'prot',atun:'prot',arroz:'dry',macarron:'dry',macint:'dry',garbanzos:'carb',lentejas:'carb',tomate:'sauce',patatas:'carb',salteado:'veg',cebolla:'veg',aceite:'oil'};
+const BOUNDS={prot:[50,350],dry:[30,200],carb:[80,450],veg:[50,300],sauce:[30,150],oil:[3,15],fruit:[80,300],bread:[30,150],dairy:[100,400],fatfood:[30,150],cheese:[10,60],nut:[10,40]};
+const MEALPCT={desayuno:25,comida:35,cena:30,otros:10};
+function guessType(n){const k=n.k||1;if((n.f||0)>60)return 'oil';if((n.p||0)*4/k>.4)return 'prot';if(k>300&&(n.c||0)>50)return 'dry';if((n.c||0)*4/k>.6&&k>70)return 'carb';if(k>300)return 'nut';return 'veg'}
+function comboFoods(){const L=[];for(const k in CAT)L.push({id:'c:'+k,name:CAT[k].n,v:CAT[k].v,t:CTYPE[k]||guessType(CAT[k].v),unit:CAT[k].unit,un:CAT[k].un,uns:CAT[k].uns,src:'Dia'});
+  for(const k in GEN)L.push({id:'g:'+k,name:GEN[k][0],v:GEN[k][2],t:GEN[k][1],src:'valores medios'});
+  foods().forEach(f=>L.push({id:'u:'+f.id,name:f.name+(f.brand?' ('+f.brand+')':''),v:f.n,t:guessType(f.n),src:'mis alimentos'}));return L}
+function solveCombo(items,tg){const J=['k','p','c','f'],W={k:3,p:3,c:1,f:1},n=items.length;
+  const A=items.map(it=>J.map(j=>(it.v[j]||0)/100)),lo=items.map(it=>BOUNDS[it.t][0]),hi=items.map(it=>BOUNDS[it.t][1]);
+  const x=items.map((_,i)=>(lo[i]+hi[i])/2*.6);const w=J.map(j=>W[j]/Math.max(1,tg[j])**2);
+  for(let it=0;it<300;it++)for(let i=0;i<n;i++){let num_=0,den=0;J.forEach((j,ji)=>{let r=0;for(let q=0;q<n;q++)if(q!==i)r+=A[q][ji]*x[q];num_+=w[ji]*A[i][ji]*(tg[j]-r);den+=w[ji]*A[i][ji]**2});
+    x[i]=clamp(den?num_/den:lo[i],lo[i],hi[i])}
+  return items.map((it,i)=>{if(it.unit)return Math.max(1,Math.round(x[i]/it.unit))*it.unit;return Math.max(lo[i],Math.round(x[i]/5)*5)})}
+let combo={meal:'comida',mode:'pct',sel:[]};
+function comboTarget(){const c=calc(profile());if(combo.mode==='rem'){const t=dayTot(cur);return{k:Math.max(0,c.target-t.k),p:Math.max(0,c.prot-t.p),c:Math.max(0,c.carb-t.c),f:Math.max(0,c.fat-t.f)}}
+  const pc=MEALPCT[combo.meal]/100;return{k:c.target*pc,p:c.prot*pc,c:c.carb*pc,f:c.fat*pc}}
+function openCombo(meal){combo.meal=meal||guessMeal();addMeal=combo.meal;
+  openSheet(`<div class="sheet-h"><h2>Plato con lo que tengo</h2><button class="x" data-close aria-label="Cerrar">✕</button></div>
+   ${mealSeg(combo.meal)}
+   <div class="seg" id="cbMode"><button type="button" data-v="pct">Lo normal para esta comida</button><button type="button" data-v="rem">Lo que me queda hoy</button></div>
+   <p class="small" id="cbTarget" style="margin:8px 0"></p>
+   <label class="f">¿Qué tienes? Elige 2 o más alimentos</label><div class="seg" id="cbSel"></div>
+   <p><input class="search" id="cbQ" type="search" placeholder="Busca: pollo, tomate, macarrones…"></p><ul class="items" id="cbList"></ul>
+   <div class="btns"><button class="btn pri" id="cbGo">Calcular mi plato</button></div><div id="cbOut"></div>`,()=>{
+    const all=comboFoods();
+    const tgt=()=>{const t=comboTarget();$('#cbTarget').innerHTML=`Objetivo: <b>${r0(t.k)} kcal</b> · P ${r0(t.p)} · H ${r0(t.c)} · G ${r0(t.f)} g`;return t};
+    const sel=()=>{$('#cbSel').innerHTML=combo.sel.length?combo.sel.map(id=>{const f=all.find(x=>x.id===id);return f?`<button type="button" class="on" data-rm="${esc(id)}">${esc(f.name)} ✕</button>`:''}).join(''):'<span class="small mut">Aún nada.</span>'};
+    const list=()=>{const q=$('#cbQ').value.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');const fs=all.filter(f=>!combo.sel.includes(f.id)&&(!q||f.name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').includes(q))).slice(0,q?25:12);
+      $('#cbList').innerHTML=fs.map(f=>`<li><button class="ed" data-add="${esc(f.id)}"><span class="n"><b>${esc(f.name)}</b><small>${esc(f.src)} · ${r0(f.v.k)} kcal · P ${d1(f.v.p)} /100 g</small></span><span class="k">+</span></button></li>`).join('')||'<li class="empty">No lo encuentro. Añádelo en Alimentos y vuelve.</li>'};
+    segSet('#cbMode',combo.mode);tgt();sel();list();bindMealSeg();
+    $('#mealSeg').addEventListener('click',()=>{combo.meal=addMeal;tgt()});
+    $('#cbMode').onclick=e=>{const b=e.target.closest('button');if(b){combo.mode=b.dataset.v;segSet('#cbMode',combo.mode);tgt()}};
+    $('#cbQ').oninput=list;
+    $('#cbList').onclick=e=>{const b=e.target.closest('[data-add]');if(b){combo.sel.push(b.dataset.add);$('#cbQ').value='';sel();list()}};
+    $('#cbSel').onclick=e=>{const b=e.target.closest('[data-rm]');if(b){combo.sel=combo.sel.filter(x=>x!==b.dataset.rm);sel();list()}};
+    $('#cbGo').onclick=()=>{const items=combo.sel.map(id=>all.find(x=>x.id===id)).filter(Boolean),t=tgt(),out=$('#cbOut');
+      if(items.length<1){out.innerHTML='<div class="note warn">Elige al menos un alimento.</div>';return}
+      if(t.k<150){out.innerHTML='<div class="note warn">Hoy ya casi no te quedan calorías. Cambia a "Lo normal para esta comida" si quieres el plato igualmente.</div>';return}
+      const g=solveCombo(items,t),tot={k:0,p:0,c:0,f:0};items.forEach((it,i)=>{for(const q in tot)tot[q]+=(it.v[q]||0)*g[i]/100});
+      const tips=[];if(tot.p<t.p*.8)tips.push('Te falta proteína: añade pollo, atún, huevo, pavo o queso fresco batido.');if(tot.k<t.k*.85)tips.push('Con estos alimentos no llegas a las calorías: añade arroz, pasta, pan o patata.');if(tot.f<t.f*.6)tips.push('Vas corto de grasas: añade un chorrito de aceite de oliva (10 g), aguacate o frutos secos.');if(tot.k>t.k*1.15)tips.push('Se pasa de calorías aun con lo mínimo de cada alimento: quita alguno.');
+      const qt=(it,gr)=>it.unit?`${Math.round(gr/it.unit)} ${Math.round(gr/it.unit)===1?it.un:it.uns} (${r0(gr)} g)`:`${r0(gr)} g`;
+      out.innerHTML=`<table class="label-tbl"><tr class="h"><td>Pon esto en el plato</td><td>kcal</td></tr>${items.map((it,i)=>`<tr><td><b>${qt(it,g[i])}</b> de ${esc(it.name)}</td><td>${r0((it.v.k||0)*g[i]/100)}</td></tr>`).join('')}
+        <tr class="h"><td>Total</td><td>${r0(tot.k)} kcal</td></tr><tr><td>Proteínas</td><td>${r0(tot.p)} / ${r0(t.p)} g</td></tr><tr><td>Hidratos</td><td>${r0(tot.c)} / ${r0(t.c)} g</td></tr><tr><td>Grasas</td><td>${r0(tot.f)} / ${r0(t.f)} g</td></tr></table>
+        <p class="small mut">Pesa en crudo (arroz y pasta, en seco). Los valores de "valores medios" son de tablas de composición, no de una marca concreta.</p>
+        ${tips.map(x=>`<div class="note warn">${x}</div>`).join('')}
+        <div class="btns"><button class="btn pri" id="cbLog">Añadir ${({desayuno:'al desayuno',comida:'a la comida',cena:'a la cena',otros:'a otros'})[combo.meal]} de hoy</button></div>`;
+      $('#cbLog').onclick=()=>{const d=JSON.parse(JSON.stringify(dayDoc(cur)));items.forEach((it,i)=>{let fid=null;const [src,k]=[it.id.slice(0,1),it.id.slice(2)];
+          if(src==='u')fid=k;else{fid=(src==='c'?'f_dia_':'f_gen_')+k;if(!docs[fid])put(fid,{name:it.name,brand:src==='c'?'Dia':'',barcode:'',n:Object.assign({k:0,p:0,c:0,f:0},it.v),serving:it.unit||null,last:Date.now(),uses:0,est:src==='g'})}
+          d.entries.push({id:uid(),meal:combo.meal,name:it.name,g:g[i],n:it.v,serving:it.unit||null,foodId:fid})});
+        put('d_'+cur,d);closeSheet();location.hash='#hoy'}};
+  })}
+$('#comboBtn').onclick=()=>openCombo(guessMeal());
 /* ---------- arranque ---------- */
 function render(){renderToday();renderFoods();renderProgress();if(docs.plan&&!plLoaded){loadPlanSettings();syncPlanUI()}if(!$('#v-plan').contains(document.activeElement))renderPlan();if(!document.activeElement||!$('#pForm').contains(document.activeElement)){fillForm();renderCalc(profile())}}
 render();route();initCloud();
