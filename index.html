@@ -200,9 +200,10 @@ details{margin-top:12px}summary{cursor:pointer;font-weight:700;min-height:44px;d
     <div class="panel">
       <div class="grid3">
         <label class="f">Presupuesto (€)<input id="plBudget" type="number" inputmode="decimal" min="5" max="200" step="1" value="20"></label>
-        <label class="f">Nº de comidas<input id="plN" type="number" inputmode="numeric" min="1" max="14" value="5"></label>
+        <label class="f">¿Cuántos días?<input id="plN" type="number" inputmode="numeric" min="1" max="14" value="5"></label>
         <label class="f">Personas<input id="plPeople" type="number" inputmode="numeric" min="1" max="6" value="1"></label>
       </div>
+      <div class="seg" id="plNQuick"><button type="button" data-v="3">3 días</button><button type="button" data-v="5">5 días</button><button type="button" data-v="7">7 días</button></div>
       <label class="f">¿Para qué comida?</label>
       <div class="seg" id="plMealSeg"><button type="button" data-v="comida">Comida</button><button type="button" data-v="cena">Cena</button></div>
       <label class="f">Parte de tus calorías del día en esa comida: <span id="plPctTxt"></span><input id="plPct" type="range" min="20" max="50" step="5" value="35" style="padding:0;border:0;min-height:36px"></label>
@@ -698,7 +699,13 @@ const CAT={
   patatas:{n:'Patatas',packs:[{g:1000,p:1.89,l:'granel ~1 kg'},{g:4000,p:4.49,l:'malla 4 kg'}],v:{k:70,p:1.7,c:15.7,f:.1,fi:2}},
   salteado:{n:'Salteado de verduras congelado Dia',packs:[{g:600,p:1.60,l:'bolsa 600 g'}],est:true,v:{k:79,p:1.4,c:6.4,s:2.5,f:4.8,sa:.05}},
   cebolla:{n:'Cebollas',packs:[{g:180,p:.35,l:'1 cebolla suelta'},{g:2000,p:2.50,l:'malla 2 kg'}],est:true,v:{k:40,p:1.1,c:9,f:.1,fi:1.7}},
-  aceite:{n:'Aceite de oliva suave La Almazara del Olivar',packs:[{g:920,p:3.85,l:'botella 1 l'}],pantry:true,v:{k:824,p:0,c:0,f:91,sf:12}}
+  aceite:{n:'Aceite de oliva suave La Almazara del Olivar',packs:[{g:920,p:3.85,l:'botella 1 l'}],pantry:true,v:{k:824,p:0,c:0,f:91,sf:12}},
+  salmon:{n:'Filete de salmón Selección de Dia',packs:[{g:450,p:10.35,l:'bandeja ~450 g'},{g:250,p:5.89,l:'lomos 250 g'}],v:{k:208,p:20,c:0,f:13,sf:3}},
+  solomillo:{n:'Solomillo de cerdo Selección de Dia',packs:[{g:600,p:5.80,l:'bolsa ~600 g'}],v:{k:120,p:21,c:0,f:4}},
+  pavo:{n:'Filetes de pechuga de pavo Selección de Dia',packs:[{g:600,p:6.29,l:'bandeja ~600 g'}],v:{k:149,p:20,c:0,f:7}},
+  lomo:{n:'Filete de cinta de lomo marinado Selección de Dia',packs:[{g:300,p:2.69,l:'bandeja 300 g'}],v:{k:150,p:20,c:1,f:7.5}},
+  platano:{n:'Plátanos',packs:[{g:1000,p:3.49,l:'bolsa ~1 kg'}],v:{k:89,p:1.1,c:23,f:.3,fi:2.6},unit:120,un:'plátano',uns:'plátanos'},
+  yogur:{n:'Yogur griego natural ligero Dia Fidias',packs:[{g:500,p:.97,l:'pack 4 × 125 g'}],v:{k:77,p:5.7,c:4.8,f:3.9},unit:125,un:'yogur',uns:'yogures'}
 };
 let priceInfo={updated:'20/11/2026',src:'precios online de Dia vía Findit',live:false};
 function applyPrices(d){const it=d.items||{};for(const k in it){if(!CAT[k])continue;const x=it[k];if(Array.isArray(x.packs)&&x.packs.length&&x.packs.every(q=>q.g>0&&q.p>0)){CAT[k].packs=x.packs.map(q=>({g:+q.g,p:+q.p,l:String(q.l||'')}));CAT[k].est=!!x.est}if(x.n)CAT[k].n=String(x.n)}
@@ -707,8 +714,11 @@ fetch('prices.json',{cache:'no-cache'}).then(r=>r.ok?r.json():null).then(d=>{if(
 function subscribePrices(db){try{db.doc('catalog/prices').onSnapshot(s=>{if(!s.exists)return;const d=s.data()||{},it=d.items||{};
   for(const k in it){if(!CAT[k])continue;const x=it[k];if(Array.isArray(x.packs)&&x.packs.every(q=>q.g>0&&q.p>0)){CAT[k].packs=x.packs.map(q=>({g:+q.g,p:+q.p,l:String(q.l||'')}));CAT[k].est=!!x.est}if(x.n)CAT[k].n=String(x.n)}
   if(d.updated)priceInfo={updated:String(d.updated),src:String(d.source||'precios online de Dia'),live:true};renderPlan()},()=>{})}catch(e){}}
-const TAG={pollo:'Pollo',picpollo:'Pollo',picmixta:'Cerdo/ternera',atun:'Pescado',huevos:'Huevo',garbanzos:'Legumbres',lentejas:'Legumbres',macarron:'Pasta',macint:'Pasta',patatas:'Patata'};
-const EXCL=['Pollo','Cerdo/ternera','Pescado','Huevo','Legumbres','Pasta','Patata'];
+const TAG={salmon:'Pescado',solomillo:'Cerdo/ternera',lomo:'Cerdo/ternera',pavo:'Pollo/pavo',yogur:'Lácteos',pollo:'Pollo/pavo',picpollo:'Pollo/pavo',picmixta:'Cerdo/ternera',atun:'Pescado',huevos:'Huevo',garbanzos:'Legumbres',lentejas:'Legumbres',macarron:'Pasta',macint:'Pasta',patatas:'Patata'};
+const EXCL=['Pollo/pavo','Cerdo/ternera','Pescado','Huevo','Legumbres','Pasta','Patata','Lácteos'];
+const QUAL={salmon:3,solomillo:2.2,pavo:1.8,pollo:1.5,lomo:1.4,picpollo:1.2,picmixta:1.1,atun:1,huevos:1};
+const EXTRAS=[{n:'',items:{},q:0},{n:'1 plátano de postre',items:{platano:120},q:.8},{n:'1 plátano y 1 yogur griego de postre',items:{platano:120,yogur:125},q:1.4}];
+const EXTRA_KEYS=['platano','yogur'];
 const RECIPES=[
  {n:'Pollo con arroz y verduras salteadas',P:['pollo',100,280],C:['arroz',40,190],fix:{salteado:150,aceite:8},st:'Cuece el arroz 15 min. Dora el pollo en tiras con el aceite, añade las verduras congeladas y saltea 7 min. Mezcla y reparte.'},
  {n:'Macarrones a la boloñesa',P:['picmixta',80,220],C:['macarron',50,190],fix:{tomate:80,cebolla:50,aceite:4},st:'Pocha la cebolla picada, dora la carne, añade el tomate y deja 10 min. Cuece la pasta y mezcla.'},
@@ -719,6 +729,10 @@ const RECIPES=[
  {n:'Pasta integral con pollo, tomate y verduras',P:['pollo',90,260],C:['macint',50,180],fix:{tomate:80,salteado:100,aceite:5},st:'Cuece la pasta. Saltea el pollo en dados con las verduras, añade el tomate 3 min y mezcla con la pasta.'},
  {n:'Patatas con picadillo de pollo y huevo',P:['picpollo',100,260],C:['patatas',150,450],fix:{huevos:63,cebolla:40,aceite:8},st:'Patata en dados al microondas 8 min (o hervida). Dora cebolla y carne picada, añade la patata y cuaja el huevo encima.'},
  {n:'Macarrones con atún y tomate',P:['atun',56,168],C:['macarron',50,190],fix:{tomate:90,cebolla:30,aceite:4},st:'Cuece la pasta. Pocha la cebolla, añade tomate y atún escurrido 3 min y mezcla.'},
+ {n:'Salmón al horno con patatas y verduras',P:['salmon',100,220],C:['patatas',150,450],fix:{salteado:150,aceite:5},st:'Patata en rodajas con sal y aceite, 20 min a 200 °C. Añade el salmón y las verduras y hornea 12–15 min más.'},
+ {n:'Solomillo de cerdo con arroz y verduras',P:['solomillo',100,260],C:['arroz',40,190],fix:{salteado:150,aceite:6},st:'Cuece el arroz. Corta el solomillo en medallones, márcalos 3 min por lado y saltea las verduras en la misma sartén.'},
+ {n:'Pavo a la plancha con pasta integral y tomate',P:['pavo',100,260],C:['macint',50,180],fix:{tomate:80,aceite:5},st:'Cuece la pasta. Haz el pavo a la plancha en tiras y mézclalo con el tomate caliente y la pasta.'},
+ {n:'Lomo con patatas y cebolla',P:['lomo',90,240],C:['patatas',150,450],fix:{cebolla:60,aceite:8},st:'Patata y cebolla en rodajas al microondas 8 min (o al horno 25 min). Haz el lomo a la plancha y sirve juntos.'},
  {n:'Garbanzos salteados con pollo y verduras',P:['pollo',80,240],C:['garbanzos',150,360],fix:{salteado:120,aceite:6},st:'Saltea el pollo en dados, añade las verduras 6 min y los garbanzos escurridos 3 min. Pimentón y comino si tienes.'}
 ];
 RECIPES.forEach((r,i)=>{r.i=i;r.tags=[...new Set([r.P[0],r.C[0],...Object.keys(r.fix)].map(k=>TAG[k]).filter(Boolean))]});
@@ -734,14 +748,14 @@ function buyFor(id,need){const ps=CAT[id].packs;let best=null;
   if(ps.length===1){const n=Math.ceil(need/ps[0].g-1e-9);return{cost:n*ps[0].p,items:[[ps[0],n]],got:n*ps[0].g}}
   const [a,b]=ps;for(let i=0;i<=Math.ceil(need/a.g);i++){const rest=need-i*a.g,j=rest>0?Math.ceil(rest/b.g-1e-9):0,c=i*a.p+j*b.p;if(!best||c<best.cost-1e-9)best={cost:c,items:[[a,i],[b,j]].filter(z=>z[1]>0),got:i*a.g+j*b.g}}
   return best}
-function evalCombo(rs,counts,S,T,Pt){const need={},meals=[];let fit=0;
-  rs.forEach((r,i)=>{const amt=scaleRecipe(r,T,Pt),nu=nutOf(amt);fit+=counts[i]*(Math.abs(nu.k-T)/T+Math.abs(nu.p-Pt)/Pt);
-    for(let c=0;c<counts[i];c++)meals.push({r,amt,nu});for(const k in amt)need[k]=(need[k]||0)+amt[k]*counts[i]*S.people});
+function evalCombo(rs,counts,S,T,Pt,ex){ex=ex||EXTRAS[0];const need={},meals=[];let fit=0,qual=0;const en=nutOf(ex.items);
+  rs.forEach((r,i)=>{const amt=scaleRecipe(r,T-en.k,Pt-en.p);for(const k in ex.items)amt[k]=(amt[k]||0)+ex.items[k];const nu=nutOf(amt);fit+=counts[i]*(Math.abs(nu.k-T)/T+Math.abs(nu.p-Pt)/Pt);qual+=counts[i]*((QUAL[r.P[0]]||1)+ex.q);
+    for(let c=0;c<counts[i];c++)meals.push({r,amt,nu,ex});for(const k in amt)need[k]=(need[k]||0)+amt[k]*counts[i]*S.people});
   let cost=0;const shop=[];for(const k in need){const b=buyFor(k,need[k]),inBudget=!(CAT[k].pantry&&S.pantry);if(inBudget)cost+=b.cost;shop.push({k,need:need[k],b,inBudget})}
-  return{meals,shop,cost,fit:fit/S.n}}
+  return{meals,shop,cost,fit:fit/S.n,qual:qual/S.n,ex}}
 function makePlans(S,T,Pt){const rs=RECIPES.filter(r=>!r.tags.some(t=>S.ex.includes(t)));const out=[];
   const pick=(start,k,acc)=>{if(acc.length===k){const base=Math.floor(S.n/k),rem=S.n%k,counts=acc.map((_,i)=>base+(i<rem?1:0));if(counts.some(c=>!c))return;
-      const e=evalCombo(acc,counts,S,T,Pt),over=Math.max(0,e.cost-S.budget);e.score=over/S.budget*4+e.fit+e.cost/S.budget*.15;e.over=over;out.push(e);return}
+      for(const ex of EXTRAS){if(S.ex.includes('Lácteos')&&ex.items.yogur)continue;const e=evalCombo(acc,counts,S,T,Pt,ex),over=Math.max(0,e.cost-S.budget);e.score=over/S.budget*6+e.fit*1.2-e.qual*.25-Math.min(e.cost,S.budget)/S.budget*.4;e.over=over;out.push(e)}return}
     for(let i=start;i<rs.length;i++)pick(i+1,k,[...acc,rs[i]])};
   pick(0,Math.min(S.dishes||1,S.n),[]);
   out.sort((a,b)=>a.score-b.score);return out}
@@ -749,6 +763,7 @@ let planIdx=0,plans=[],plS=null;
 const DAYS=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
 function plSettings(){const sp=docs.plan||{};return{budget:num($('#plBudget').value)||20,n:clamp(Math.round(num($('#plN').value)||5),1,14),people:clamp(Math.round(num($('#plPeople').value)||1),1,6),meal:plMeal,pct:+$('#plPct').value,dishes:plDish,ex:[...plEx],pantry:$('#plPantry').checked}}
 let plMeal='comida',plEx=new Set(),plDish=1;
+$('#plNQuick').onclick=e=>{const b=e.target.closest('button');if(b){$('#plN').value=b.dataset.v}};
 $('#plDishSeg').onclick=e=>{const b=e.target.closest('button');if(b){plDish=+b.dataset.v;segSet('#plDishSeg',String(plDish))}};
 $('#plEx').innerHTML=EXCL.map(t=>`<button type="button" data-v="${t}">${t}</button>`).join('');
 $('#plEx').onclick=e=>{const b=e.target.closest('button');if(!b)return;const t=b.dataset.v;plEx.has(t)?plEx.delete(t):plEx.add(t);b.classList.toggle('on',plEx.has(t))};
@@ -773,12 +788,12 @@ function renderPlan(){
   const dayName=i=>i<7?DAYS[i]:'Día '+(i+1);
   $('#plOut').innerHTML=`<div class="panel"><div class="ttl"><span>Tu semana</span><span class="mut">opción ${planIdx+1} de ${Math.min(plans.length,12)}</span></div>
    <div class="res"><div><b style="${pl.over?'color:var(--warn)':''}">${eur(pl.cost)}</b><small>de ${eur(S.budget)} · ${eur(pl.cost/(n*S.people))} por ración</small></div><div><b>${r0(avg.k/n)} kcal</b><small>por comida (objetivo ${r0(S.T)})</small></div><div><b style="color:var(--pro)">${r0(avg.p/n)} g</b><small>proteína por comida (obj. ${r0(S.Pt)})</small></div><div><b>${r0(avg.c/n)} · ${r0(avg.f/n)} g</b><small>hidratos · grasas</small></div></div>
-   ${pl.over?`<div class="note warn">Me paso ${eur(pl.over)} del presupuesto. Prueba con menos comidas, menos personas o más presupuesto.</div>`:`<div class="note ok">Te sobran ${eur(S.budget-pl.cost)}: dan para fruta o para el desayuno.</div>`}
+   ${pl.over?`<div class="note warn">Me paso ${eur(pl.over)} del presupuesto. Prueba con menos comidas, menos personas o más presupuesto.</div>`:`<div class="note ok">Con ${eur(S.budget)} te sale: ${esc(pl.meals[0].r.n.toLowerCase())}${groups.length>1?' y '+(groups.length-1)+' plato'+(groups.length>2?'s':'')+' más':''}${pl.ex.n?', con '+pl.ex.n:''}. Gastas ${eur(pl.cost)} y te sobran ${eur(S.budget-pl.cost)}.${S.budget-pl.cost>pl.cost/S.n*1.5?` Con lo que sobra podrías alargarlo unos ${Math.floor(S.budget/(pl.cost/S.n))} días en total.`:''}</div>`}
    ${S.n>3?`<p class="small mut">Para cocinar menos: prepara ${groups.length===1?'todo':'cada receta'} de una vez y guárdalo en tuppers; en la nevera aguanta 3–4 días, el resto al congelador.</p>`:''}</div>
-   ${groups.map(g=>{const N=g.days.length*S.people,tot=Object.keys(g.amt).reduce((t,k)=>t+g.amt[k],0);return `<div class="panel"><div class="ttl"><span>${esc(g.r.n)}</span><span class="mut">${N} ${N===1?'ración':'raciones'}</span></div>
+   ${groups.map(g=>{const N=g.days.length*S.people,tot=Object.keys(g.amt).filter(k=>!EXTRA_KEYS.includes(k)).reduce((t,k)=>t+g.amt[k],0);return `<div class="panel"><div class="ttl"><span>${esc(g.r.n)}</span><span class="mut">${N} ${N===1?'ración':'raciones'}</span></div>
      <p class="small mut" style="margin:0 0 8px">${g.days.map(dayName).join(', ')} · por plato: <b>${r0(g.nu.k)} kcal</b> · P ${r0(g.nu.p)} · H ${r0(g.nu.c)} · G ${r0(g.nu.f)} g</p>
      <table class="label-tbl"><tr class="h"><td>Ingrediente</td><td style="text-align:right">1 plato</td><td style="text-align:right">Total ×${N}</td></tr>
-     ${Object.keys(g.amt).map(k=>`<tr data-prod="${k}" style="cursor:pointer"><td><u>${esc(CAT[k].n)}</u></td><td style="text-align:right;white-space:nowrap">${qty(k,g.amt[k])}</td><td>${qty(k,g.amt[k]*N)}</td></tr>`).join('')}</table>
+     ${Object.keys(g.amt).map(k=>`<tr data-prod="${k}" style="cursor:pointer"><td><u>${esc(CAT[k].n)}</u>${EXTRA_KEYS.includes(k)?' <span class="pill">postre</span>':''}</td><td style="text-align:right;white-space:nowrap">${qty(k,g.amt[k])}</td><td>${qty(k,g.amt[k]*N)}</td></tr>`).join('')}</table>
      <p style="font-size:15px"><b>Cómo:</b> ${esc(g.r.st)}</p>
      ${N>1?`<div class="note"><b>Cocina el total de una vez y repártelo en ${N} tuppers iguales.</b> Cada tupper lleva las cantidades de la columna "1 plato" (unos ${r0(tot)} g en crudo).</div>`:''}
      <div class="btns" style="margin-top:6px"><button class="btn sm pri" data-log="${g.r.i}">Añadir 1 plato a ${S.meal==='cena'?'la cena':'la comida'} de hoy</button></div></div>`}).join('')}
@@ -790,7 +805,7 @@ function renderPlan(){
   $('#plCopy').onclick=async()=>{const t='Compra Dia ('+eur(pl.cost)+')\n'+pl.shop.filter(s=>s.inBudget).map(s=>'- '+CAT[s.k].n+': '+s.b.items.map(([pk,c])=>c+' × '+pk.l).join(' + ')).join('\n');
     try{await navigator.clipboard.writeText(t);$('#plCopyMsg').textContent='Copiada. Pégala en notas o WhatsApp.'}catch(e){$('#plCopyMsg').textContent='No se pudo copiar desde aquí.'}};
 }
-const PQ={pollo:[null,'pechuga-de-pollo'],picpollo:['carne picada pollo dia','carne-picada'],picmixta:['carne picada vacuno cerdo dia','carne-picada'],huevos:['huevos dia','huevos'],atun:['atun al natural dia','atun','8480017314772'],arroz:['arroz largo arrozona dia','arroz','8480017288097'],macarron:['macarron al diante dia','macarrones','8480017061478'],macint:['macarron integral dia','macarrones','8480017256423'],garbanzos:['garbanzos cocidos vegecampo','garbanzos','8480017012326'],lentejas:['lentejas cocidas vegecampo','lentejas'],tomate:['tomate frito dia','tomate-frito','8480017106773'],patatas:[null,'patatas'],salteado:['salteado verduras dia',null],cebolla:[null,null],aceite:['aceite oliva suave almazara del olivar',null]};
+const PQ={salmon:[null,'salmon'],solomillo:[null,'solomillo'],pavo:[null,null],lomo:[null,'lomo'],platano:[null,null],yogur:[null,'yogur-griego'],pollo:[null,'pechuga-de-pollo'],picpollo:['carne picada pollo dia','carne-picada'],picmixta:['carne picada vacuno cerdo dia','carne-picada'],huevos:['huevos dia','huevos'],atun:['atun al natural dia','atun','8480017314772'],arroz:['arroz largo arrozona dia','arroz','8480017288097'],macarron:['macarron al diante dia','macarrones','8480017061478'],macint:['macarron integral dia','macarrones','8480017256423'],garbanzos:['garbanzos cocidos vegecampo','garbanzos','8480017012326'],lentejas:['lentejas cocidas vegecampo','lentejas'],tomate:['tomate frito dia','tomate-frito','8480017106773'],patatas:[null,'patatas'],salteado:['salteado verduras dia',null],cebolla:[null,null],aceite:['aceite oliva suave almazara del olivar',null]};
 const photoCache={};
 async function offByCode(code){const ctl=new AbortController(),t=setTimeout(()=>ctl.abort(),12000);
   try{const r=await fetch('https://world.openfoodfacts.org/api/v2/product/'+code+'.json?fields=product_name,image_front_url,image_url,image_front_small_url',{signal:ctl.signal});const j=await r.json();const P=j.product||{};
@@ -825,7 +840,7 @@ const GEN={tomnat:['Tomate natural','veg',{k:18,p:.9,c:3.9,f:.2,fi:1.2}],lechuga
  yogur:['Yogur natural','dairy',{k:61,p:3.5,c:4.7,f:3.3}],queso0:['Queso fresco batido 0%','dairy',{k:46,p:8,c:3.5,f:.1}],leche:['Leche semidesnatada','dairy',{k:46,p:3.2,c:4.7,f:1.6}],
  aguacate:['Aguacate','fatfood',{k:160,p:2,c:8.5,f:14.7,fi:6.7}],queso:['Queso rallado','cheese',{k:400,p:28,c:1,f:32}],cacahuete:['Crema de cacahuete','nut',{k:588,p:25,c:20,f:50,fi:6}],nueces:['Nueces','nut',{k:654,p:15,c:14,f:65,fi:7}],
  york:['Jamón cocido','prot',{k:110,p:18,c:1.5,f:3.5}],pavo:['Pechuga de pavo (fiambre)','prot',{k:100,p:19,c:2,f:2}],salmon:['Salmón','prot',{k:208,p:20,c:0,f:13}],merluza:['Merluza','prot',{k:82,p:17.5,c:0,f:1.3}],ternera:['Filete de ternera','prot',{k:131,p:21,c:0,f:5}],lomo:['Lomo de cerdo','prot',{k:143,p:21,c:0,f:6.5}],gambas:['Gambas','prot',{k:85,p:18,c:.5,f:1}],tofu:['Tofu','prot',{k:144,p:15.8,c:2,f:8.7}]};
-const CTYPE={pollo:'prot',picpollo:'prot',picmixta:'prot',huevos:'prot',atun:'prot',arroz:'dry',macarron:'dry',macint:'dry',garbanzos:'carb',lentejas:'carb',tomate:'sauce',patatas:'carb',salteado:'veg',cebolla:'veg',aceite:'oil'};
+const CTYPE={salmon:'prot',solomillo:'prot',pavo:'prot',lomo:'prot',platano:'fruit',yogur:'dairy',pollo:'prot',picpollo:'prot',picmixta:'prot',huevos:'prot',atun:'prot',arroz:'dry',macarron:'dry',macint:'dry',garbanzos:'carb',lentejas:'carb',tomate:'sauce',patatas:'carb',salteado:'veg',cebolla:'veg',aceite:'oil'};
 const BOUNDS={prot:[50,350],dry:[30,200],carb:[80,450],veg:[50,300],sauce:[30,150],oil:[3,15],fruit:[80,300],bread:[30,150],dairy:[100,400],fatfood:[30,150],cheese:[10,60],nut:[10,40]};
 const MEALPCT={desayuno:25,comida:35,cena:30,otros:10};
 function guessType(n){const k=n.k||1;if((n.f||0)>60)return 'oil';if((n.p||0)*4/k>.4)return 'prot';if(k>300&&(n.c||0)>50)return 'dry';if((n.c||0)*4/k>.6&&k>70)return 'carb';if(k>300)return 'nut';return 'veg'}
