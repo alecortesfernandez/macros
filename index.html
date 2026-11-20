@@ -72,6 +72,7 @@ h2{font-size:20px;line-height:1.15;margin:0;font-weight:800}
 .items li .k{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
 .items li button.ed{border:0;background:none;padding:0;text-align:left;flex:1;display:flex;gap:10px;align-items:center;min-height:44px}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:0 16px;border-radius:999px;border:2px solid var(--rule);background:var(--bg);font-weight:700;font-size:15px;text-decoration:none}
+a.btn{color:var(--ink)}
 .btn.pri{background:var(--ink);color:var(--bg)}
 .btn.sm{min-height:36px;padding:0 12px;font-size:14px}
 .btn.ghost{border-color:var(--line)}
@@ -204,6 +205,8 @@ details{margin-top:12px}summary{cursor:pointer;font-weight:700;min-height:44px;d
       <label class="f">¿Para qué comida?</label>
       <div class="seg" id="plMealSeg"><button type="button" data-v="comida">Comida</button><button type="button" data-v="cena">Cena</button></div>
       <label class="f">Parte de tus calorías del día en esa comida: <span id="plPctTxt"></span><input id="plPct" type="range" min="20" max="50" step="5" value="35" style="padding:0;border:0;min-height:36px"></label>
+      <label class="f">¿Cuántos platos distintos en la semana?</label>
+      <div class="seg" id="plDishSeg"><button type="button" data-v="1">1 plato (cocinar una vez)</button><button type="button" data-v="2">2 platos</button><button type="button" data-v="3">3 platos</button></div>
       <label class="f">No quiero</label>
       <div class="seg" id="plEx"></div>
       <label class="f" style="display:flex;gap:10px;align-items:center;font-weight:500"><input id="plPantry" type="checkbox" checked style="width:22px;height:22px;min-height:0;margin:0">Ya tengo aceite en casa (no lo cuento en el presupuesto)</label>
@@ -735,21 +738,22 @@ function evalCombo(rs,counts,S,T,Pt){const need={},meals=[];let fit=0;
   return{meals,shop,cost,fit:fit/S.n}}
 function makePlans(S,T,Pt){const rs=RECIPES.filter(r=>!r.tags.some(t=>S.ex.includes(t)));const out=[];
   const pick=(start,k,acc)=>{if(acc.length===k){const base=Math.floor(S.n/k),rem=S.n%k,counts=acc.map((_,i)=>base+(i<rem?1:0));if(counts.some(c=>!c))return;
-      const e=evalCombo(acc,counts,S,T,Pt),over=Math.max(0,e.cost-S.budget);e.score=over/S.budget*4+e.fit+(k===1&&S.n>2?.35:0)+e.cost/S.budget*.15;e.over=over;out.push(e);return}
+      const e=evalCombo(acc,counts,S,T,Pt),over=Math.max(0,e.cost-S.budget);e.score=over/S.budget*4+e.fit+e.cost/S.budget*.15;e.over=over;out.push(e);return}
     for(let i=start;i<rs.length;i++)pick(i+1,k,[...acc,rs[i]])};
-  for(let k=1;k<=Math.min(3,S.n);k++)pick(0,k,[]);
+  pick(0,Math.min(S.dishes||1,S.n),[]);
   out.sort((a,b)=>a.score-b.score);return out}
 let planIdx=0,plans=[],plS=null;
 const DAYS=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
-function plSettings(){const sp=docs.plan||{};return{budget:num($('#plBudget').value)||20,n:clamp(Math.round(num($('#plN').value)||5),1,14),people:clamp(Math.round(num($('#plPeople').value)||1),1,6),meal:plMeal,pct:+$('#plPct').value,ex:[...plEx],pantry:$('#plPantry').checked}}
-let plMeal='comida',plEx=new Set();
+function plSettings(){const sp=docs.plan||{};return{budget:num($('#plBudget').value)||20,n:clamp(Math.round(num($('#plN').value)||5),1,14),people:clamp(Math.round(num($('#plPeople').value)||1),1,6),meal:plMeal,pct:+$('#plPct').value,dishes:plDish,ex:[...plEx],pantry:$('#plPantry').checked}}
+let plMeal='comida',plEx=new Set(),plDish=1;
+$('#plDishSeg').onclick=e=>{const b=e.target.closest('button');if(b){plDish=+b.dataset.v;segSet('#plDishSeg',String(plDish))}};
 $('#plEx').innerHTML=EXCL.map(t=>`<button type="button" data-v="${t}">${t}</button>`).join('');
 $('#plEx').onclick=e=>{const b=e.target.closest('button');if(!b)return;const t=b.dataset.v;plEx.has(t)?plEx.delete(t):plEx.add(t);b.classList.toggle('on',plEx.has(t))};
 $('#plMealSeg').onclick=e=>{const b=e.target.closest('button');if(b){plMeal=b.dataset.v;segSet('#plMealSeg',plMeal)}};
 $('#plPct').oninput=()=>{$('#plPctTxt').textContent=$('#plPct').value+' %'};
 let plLoaded=false;
-function loadPlanSettings(){const sp=docs.plan;if(!sp)return;plLoaded=true;$('#plBudget').value=sp.budget;$('#plN').value=sp.n;$('#plPeople').value=sp.people;plMeal=sp.meal||'comida';$('#plPct').value=sp.pct||35;$('#plPantry').checked=sp.pantry!==false;plEx=new Set(sp.ex||[]);planIdx=sp.idx||0}
-function syncPlanUI(){segSet('#plMealSeg',plMeal);document.querySelectorAll('#plEx button').forEach(b=>b.classList.toggle('on',plEx.has(b.dataset.v)));$('#plPctTxt').textContent=$('#plPct').value+' %'}
+function loadPlanSettings(){const sp=docs.plan;if(!sp)return;plLoaded=true;$('#plBudget').value=sp.budget;$('#plN').value=sp.n;$('#plPeople').value=sp.people;plMeal=sp.meal||'comida';$('#plPct').value=sp.pct||35;$('#plPantry').checked=sp.pantry!==false;plEx=new Set(sp.ex||[]);plDish=sp.dishes||1;planIdx=sp.idx||0}
+function syncPlanUI(){segSet('#plMealSeg',plMeal);segSet('#plDishSeg',String(plDish));document.querySelectorAll('#plEx button').forEach(b=>b.classList.toggle('on',plEx.has(b.dataset.v)));$('#plPctTxt').textContent=$('#plPct').value+' %'}
 function buildPlans(){plS=plSettings();const c=calc(profile());const T=c.target*plS.pct/100,Pt=c.prot*plS.pct/100;plans=makePlans(plS,T,Pt);plS.T=T;plS.Pt=Pt}
 $('#plGo').onclick=()=>{planIdx=0;buildPlans();const s=Object.assign({},plS,{idx:0,on:true});delete s.T;delete s.Pt;put('plan',s);renderPlan();$('#plOut').scrollIntoView({behavior:'smooth',block:'start'})};
 $('#plNext').onclick=()=>{if(!plans.length)return;planIdx=(planIdx+1)%Math.min(plans.length,12);const s=Object.assign({},docs.plan||{},{idx:planIdx});put('plan',s);renderPlan()};
@@ -768,18 +772,39 @@ function renderPlan(){
    <div class="res"><div><b style="${pl.over?'color:var(--warn)':''}">${eur(pl.cost)}</b><small>de ${eur(S.budget)} · ${eur(pl.cost/(n*S.people))} por ración</small></div><div><b>${r0(avg.k/n)} kcal</b><small>por comida (objetivo ${r0(S.T)})</small></div><div><b style="color:var(--pro)">${r0(avg.p/n)} g</b><small>proteína por comida (obj. ${r0(S.Pt)})</small></div><div><b>${r0(avg.c/n)} · ${r0(avg.f/n)} g</b><small>hidratos · grasas</small></div></div>
    ${pl.over?`<div class="note warn">Me paso ${eur(pl.over)} del presupuesto. Prueba con menos comidas, menos personas o más presupuesto.</div>`:`<div class="note ok">Te sobran ${eur(S.budget-pl.cost)}: dan para fruta o para el desayuno.</div>`}
    ${S.n>3?`<p class="small mut">Para cocinar menos: prepara ${groups.length===1?'todo':'cada receta'} de una vez y guárdalo en tuppers; en la nevera aguanta 3–4 días, el resto al congelador.</p>`:''}</div>
-   ${groups.map(g=>`<div class="meal"><div class="meal-h"><h2>${esc(g.r.n)}</h2></div>
-     <p class="small mut" style="margin:4px 0">${g.days.map(dayName).join(', ')} · ${r0(g.nu.k)} kcal · P ${r0(g.nu.p)} · H ${r0(g.nu.c)} · G ${r0(g.nu.f)} g</p>
-     <ul class="items">${Object.keys(g.amt).map(k=>`<li><span class="n"><b>${esc(CAT[k].n)}</b></span><span class="k">${qty(k,g.amt[k])}</span></li>`).join('')}</ul>
-     <p style="font-size:15px">${esc(g.r.st)}</p>
-     <div class="btns" style="margin-top:0"><button class="btn sm pri" data-log="${g.r.i}">Añadir a ${S.meal==='cena'?'la cena':'la comida'} de hoy</button></div></div>`).join('')}
+   ${groups.map(g=>{const N=g.days.length*S.people,tot=Object.keys(g.amt).reduce((t,k)=>t+g.amt[k],0);return `<div class="panel"><div class="ttl"><span>${esc(g.r.n)}</span><span class="mut">${N} ${N===1?'ración':'raciones'}</span></div>
+     <p class="small mut" style="margin:0 0 8px">${g.days.map(dayName).join(', ')} · por plato: <b>${r0(g.nu.k)} kcal</b> · P ${r0(g.nu.p)} · H ${r0(g.nu.c)} · G ${r0(g.nu.f)} g</p>
+     <table class="label-tbl"><tr class="h"><td>Ingrediente</td><td style="text-align:right">1 plato</td><td style="text-align:right">Total ×${N}</td></tr>
+     ${Object.keys(g.amt).map(k=>`<tr data-prod="${k}" style="cursor:pointer"><td><u>${esc(CAT[k].n)}</u></td><td style="text-align:right;white-space:nowrap">${qty(k,g.amt[k])}</td><td>${qty(k,g.amt[k]*N)}</td></tr>`).join('')}</table>
+     <p style="font-size:15px"><b>Cómo:</b> ${esc(g.r.st)}</p>
+     ${N>1?`<div class="note"><b>Cocina el total de una vez y repártelo en ${N} tuppers iguales.</b> Cada tupper lleva las cantidades de la columna "1 plato" (unos ${r0(tot)} g en crudo).</div>`:''}
+     <div class="btns" style="margin-top:6px"><button class="btn sm pri" data-log="${g.r.i}">Añadir 1 plato a ${S.meal==='cena'?'la cena':'la comida'} de hoy</button></div></div>`}).join('')}
    <div class="panel"><div class="ttl"><span>Lista de la compra · Dia</span><span>${eur(pl.cost)}</span></div>
-   <ul class="items">${pl.shop.map(s=>`<li><span class="n"><b>${esc(CAT[s.k].n)}</b><small>${s.b.items.map(([pk,c])=>`${c} × ${esc(pk.l)}`).join(' + ')} · usas ${qty(s.k,s.need)}${s.b.got-s.need>=50&&!CAT[s.k].unit?` · sobran ${qty(s.k,s.b.got-s.need)}`:''}</small></span><span class="k">${s.inBudget?'':'<span class="pill">en casa</span> '}${CAT[s.k].est?'≈ ':''}${eur(s.b.cost)}</span></li>`).join('')}</ul>
+   <ul class="items">${pl.shop.map(s=>`<li data-prod="${s.k}" style="cursor:pointer"><span class="n"><b>${esc(CAT[s.k].n)} ›</b><small>${s.b.items.map(([pk,c])=>`${c} × ${esc(pk.l)}`).join(' + ')} · usas ${qty(s.k,s.need)}${s.b.got-s.need>=50&&!CAT[s.k].unit?` · sobran ${qty(s.k,s.b.got-s.need)}`:''}</small></span><span class="k">${s.inBudget?'':'<span class="pill">en casa</span> '}${CAT[s.k].est?'≈ ':''}${eur(s.b.cost)}</span></li>`).join('')}</ul>
    <div class="btns"><button class="btn sm" id="plCopy">Copiar lista</button></div><div id="plCopyMsg" class="small mut"></div></div>`;
+  $('#plOut').querySelectorAll('[data-prod]').forEach(el=>el.onclick=()=>openProduct(el.dataset.prod));
   $('#plOut').querySelectorAll('[data-log]').forEach(b=>b.onclick=()=>{const g=groups.find(x=>x.r.i===+b.dataset.log);logRecipe(g,S.meal==='cena'?'cena':'comida');b.textContent='Añadido ✓';b.disabled=true});
   $('#plCopy').onclick=async()=>{const t='Compra Dia ('+eur(pl.cost)+')\n'+pl.shop.filter(s=>s.inBudget).map(s=>'- '+CAT[s.k].n+': '+s.b.items.map(([pk,c])=>c+' × '+pk.l).join(' + ')).join('\n');
     try{await navigator.clipboard.writeText(t);$('#plCopyMsg').textContent='Copiada. Pégala en notas o WhatsApp.'}catch(e){$('#plCopyMsg').textContent='No se pudo copiar desde aquí.'}};
 }
+const PQ={pollo:['pechuga pollo dia','pechuga-de-pollo'],picpollo:['carne picada pollo dia','carne-picada'],picmixta:['carne picada vacuno cerdo dia','carne-picada'],huevos:['huevos dia','huevos'],atun:['atun al natural mari marinera','atun'],arroz:['arroz largo arrozona dia','arroz'],macarron:['macarron al diante dia','macarrones'],macint:['macarron integral dia','macarrones'],garbanzos:['garbanzos cocidos vegecampo','garbanzos'],lentejas:['lentejas cocidas vegecampo','lentejas'],tomate:['tomate frito vegecampo','tomate-frito'],patatas:[null,'patatas'],salteado:['salteado verduras dia',null],cebolla:[null,null],aceite:['aceite oliva suave almazara del olivar',null]};
+const photoCache={};
+async function offPhoto(q){if(q in photoCache)return photoCache[q];const ctl=new AbortController(),t=setTimeout(()=>ctl.abort(),9000);
+  try{const r=await fetch('https://world.openfoodfacts.org/cgi/search.pl?search_terms='+encodeURIComponent(q)+'&search_simple=1&action=process&json=1&page_size=12&fields=code,product_name,brands,stores,image_front_url,image_front_small_url',{signal:ctl.signal});const j=await r.json();
+    const ps=(j.products||[]).filter(x=>x.image_front_url||x.image_front_small_url),isDia=x=>/\bd[ií]a\b/i.test((x.brands||'')+' '+(x.stores||''));
+    const best=ps.find(isDia)||null;photoCache[q]=best?{img:best.image_front_url||best.image_front_small_url,name:best.product_name||'',code:best.code}:null}
+  catch(e){photoCache[q]=undefined}finally{clearTimeout(t)}return photoCache[q]}
+async function openProduct(k){const c=CAT[k],[q,fs]=PQ[k]||[null,null],v=c.v;
+  const links=`${fs?`<a class="btn sm" href="https://finditapp.es/supermercado/dia/${fs}" target="_blank" rel="noopener">Ver precios en Dia ›</a>`:''}<a class="btn sm ghost" href="https://www.google.com/search?q=${encodeURIComponent('Dia '+c.n)}" target="_blank" rel="noopener">Buscar en Google ›</a>`;
+  openSheet(`<div class="sheet-h"><h2>${esc(c.n)}</h2><button class="x" data-close aria-label="Cerrar">✕</button></div>
+   <div id="prodImg" style="min-height:${q?'180px':'0'};display:grid;place-items:center;background:var(--card);border-radius:12px;margin:6px 0">${q?'<div class="spin"></div>':''}</div>
+   <p class="small mut" style="margin:4px 0">${c.packs.map(p=>`${esc(p.l)}: <b>${c.est?'≈ ':''}${eur(p.p)}</b>`).join(' · ')}</p>
+   <table class="label-tbl"><tr class="h"><td>Por 100 g</td><td>${r0(v.k)} kcal</td></tr><tr><td>Proteínas</td><td>${d1(v.p)} g</td></tr><tr><td>Hidratos</td><td>${d1(v.c)} g</td></tr><tr><td>Grasas</td><td>${d1(v.f)} g</td></tr></table>
+   <div class="btns">${links}</div>`);
+  if(!q){$('#prodImg').style.display='none';return}
+  const ph=await offPhoto(q),box=$('#prodImg');if(!box)return;
+  if(!ph){box.innerHTML='<p class="small mut" style="padding:16px;text-align:center">No he encontrado una foto de este producto. Mira el enlace de abajo.</p>';return}
+  box.innerHTML=`<img src="${esc(ph.img)}" alt="${esc(c.n)}" style="max-width:100%;max-height:260px;object-fit:contain;border-radius:10px;padding:8px" onerror="this.parentNode.innerHTML='<p class=&quot;small mut&quot; style=&quot;padding:16px&quot;>No se puede cargar la foto aquí.</p>'"><p class="small mut" style="margin:0 0 8px;text-align:center">Foto: Open Food Facts${ph.name?' · '+esc(ph.name):''}</p>`}
 function logRecipe(g,meal){const d=JSON.parse(JSON.stringify(dayDoc(cur)));
   for(const k in g.amt){const fid='f_dia_'+k,c=CAT[k];if(!docs[fid])put(fid,{name:c.n,brand:'Dia',barcode:'',n:Object.assign({k:0,p:0,c:0,f:0},c.v),serving:c.unit||null,last:Date.now(),uses:0});
     d.entries.push({id:uid(),meal,name:c.n,g:g.amt[k],n:c.v,serving:c.unit||null,foodId:fid})}
